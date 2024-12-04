@@ -1,0 +1,15 @@
+[
+    {
+        "id": "18",
+        "channel": "/service/controller",
+        "data": {
+            "gameid": "300520",
+            "type": "message",
+            "host": "kahoot.it",
+            "id": 45,
+            "content": "{\"type\":\"quiz\",\"choice\":3,\"questionIndex\":1}"
+        },
+        "clientId": "k3b1h1sr1pvtje159m1ckgi5jwr93rf",
+        "ext": {}
+    }
+]

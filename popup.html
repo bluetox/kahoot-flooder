@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kahoot Flooder</title>
+  <style>
+    /* Reset some basic styles */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Roboto', sans-serif;
+      background-color: #121212;
+      color: #E0E0E0;
+      padding: 40px;
+    }
+
+    h1 {
+      font-size: 32px;
+      margin-bottom: 20px;
+      color: #4CAF50;
+      text-align: center;
+    }
+
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      background: #1F1F1F;
+      border-radius: 10px;
+      padding: 20px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+    }
+
+    .input-group {
+      margin-bottom: 15px;
+    }
+
+    .input-group label {
+      font-size: 14px;
+      margin-bottom: 5px;
+      display: block;
+      color: #A1A1A1;
+    }
+
+    .input-group input {
+      width: 100%;
+      padding: 10px;
+      font-size: 16px;
+      border: 1px solid #333;
+      border-radius: 5px;
+      margin-top: 5px;
+      background-color: #2C2C2C;
+      color: #E0E0E0;
+    }
+
+    .input-group input:focus {
+      border-color: #4CAF50;
+      outline: none;
+    }
+
+    .button {
+      width: 100%;
+      padding: 12px;
+      font-size: 18px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .button:hover {
+      background-color: #45a049;
+    }
+
+    .output {
+      margin-top: 20px;
+      padding: 10px;
+      background-color: #2C2C2C;
+      border: 1px solid #444;
+      border-radius: 5px;
+      color: #E0E0E0;
+      font-size: 16px;
+      word-wrap: break-word;
+    }
+
+    .error {
+      color: #F44336;
+    }
+
+    .success {
+      color: #4CAF50;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Kahoot Flooder</h1>
+
+  <div class="container">
+    <div class="input-group">
+      <label for="gameId">Enter Game ID:</label>
+      <input type="text" id="gameId" placeholder="Enter Kahoot Game ID">
+    </div>
+    <div class="input-group">
+      <label for="num">Number of people to join (default 30):</label>
+      <input type="text" id="num" placeholder="Enter number of people to join">
+    </div>
+    <button id="fetchButton" class="button">Fetch Challenge</button>
+    <div id="output" class="output"></div>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+
+        const extractMessageAndOffset = e => {
+            const t = /'(\d*[a-z]*[A-Z]*)\w+'/
+              , o = e.search("=")
+              , r = e.slice(o + 1)
+              , n = r.search(";")
+              , s = r.slice(0, Math.max(0, n)).trim()
+              , a = t.exec(e);
+            return {
+                message: (a && a.length > 0 ? a[0] : "").slice(1, -1),
+                offsetEquation: s
+            }
+        }
+
+      const xorString = (e, t) => {
+        let o = "";
+        for (let r = 0; r < e.length; r++) {
+          const n = e.charCodeAt(r),
+                s = t.charCodeAt(r % t.length),
+                a = n ^ s;
+          console.log(`Char ${e.charAt(r)} (code: ${n}) XOR ${t.charAt(r % t.length)} (code: ${s}) = ${a}`);
+          o += String.fromCharCode(a);
+        }
+        return o;
+      };
+
+      const calculateOffset = (offsetEquation) => {
+        try {
+          const sanitizedEquation = offsetEquation.replace(/[^0-9+\-*/(). ]/g, '');
+          const offset = new Function('return ' + sanitizedEquation)();
+          console.log('Calculated offset:', offset); // Log offset for debugging
+          return offset;
+        } catch (e) {
+          console.error("Error calculating offset:", e);
+          return 0;
+        }
+      };
+
+      const reserveChallengeToAnswer = (message, offsetEquation) => {
+        const offset = calculateOffset(offsetEquation);
+        return message.replace(/./g, (char, position) => {
+          return String.fromCharCode((char.charCodeAt(0) * position + offset) % 77 + 48);
+        });
+      };
+
+      const base64Decode = (encoded) => {
+        try {
+          const decoded = atob(encoded);
+          console.log("Decoded base64:", decoded); // Add this for debugging
+          return decoded;
+        } catch (error) {
+          console.error('Error decoding base64:', error);
+          return ''; // Return empty if decoding fails
+        }
+      };
+
+      const decodeSessionToken = (sessionToken, message, offsetEquation) => {
+        const decodedMessage = reserveChallengeToAnswer(message, offsetEquation);
+        const decodedSessionToken = base64Decode(sessionToken);
+        return xorString(decodedSessionToken, decodedMessage);
+      };
+
+      document.getElementById('fetchButton').addEventListener('click', () => {
+        const gameId = document.getElementById('gameId').value.trim();
+        const num = document.getElementById('num').value.trim();
+        if (!gameId) {
+          document.getElementById('output').innerText = 'Please enter a valid Game ID.';
+          document.getElementById('output').className = 'output error';
+          return;
+        }
+
+        const url = `http://127.0.0.1:5000/proxy?gameId=${gameId}&timestamp=${Date.now()}`;
+
+        fetch(url)
+          .then(response => response.json())
+          .then(data => {
+            const challenge = data.challenge;
+
+            if (challenge) {
+              const sessionToken = data['session-token'];
+              
+              const { message, offsetEquation } = extractMessageAndOffset(challenge);
+
+              const decodedMessage = decodeSessionToken(sessionToken, message, offsetEquation);
+
+              console.log('Decoded message:', decodedMessage);
+              const url = `http://127.0.0.1:5000/connect?gameId=${gameId}&session-token=${decodedMessage}&joinNum=${num}`;
+              fetch(url);
+              document.getElementById('output').innerText = decodedMessage;
+              document.getElementById('output').className = 'output success';
+            } else {
+              document.getElementById('output').innerText = 'Challenge not found in the response.';
+              document.getElementById('output').className = 'output error';
+            }
+          })
+          .catch(error => {
+            console.error('Error fetching data:', error);
+            document.getElementById('output').innerText = 'Error fetching challenge data.';
+            document.getElementById('output').className = 'output error';
+          });
+      });
+    });
+  </script>
+
+</body>
+</html>
